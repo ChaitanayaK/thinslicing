@@ -304,7 +304,7 @@ function buildQueue() {
 async function loadCSV() {
   const msg = document.getElementById('loadingMsg');
   try {
-    const res = await fetch('./assets/celebs.csv');
+    const res = await fetch('./celebs.csv');
     if (!res.ok) throw new Error(`HTTP ${res.status} — is the file at assets/celebs.csv?`);
     const text = await res.text();
     fullDataset = parseCSV(text);
