@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Flash Viewer</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111;
+    --border: #1e1e1e;
+    --accent: #e8ff47;
+    --accent2: #ff4757;
+    --text: #f0f0f0;
+    --muted: #555;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px);
+    pointer-events: none;
+    z-index: 100;
+  }
+
+  .screen {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 520px;
+    padding: 2rem;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.8rem;
+    animation: screenIn 0.35s ease forwards;
+  }
+  .screen.active { display: flex; }
+
+  @keyframes screenIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 3.5rem;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-shadow: 0 0 40px rgba(232,255,71,0.25);
+    text-align: center;
+    line-height: 1;
+  }
+  .logo span { color: var(--text); opacity: 0.35; }
+  .tagline { font-size: 0.6rem; letter-spacing: 0.35em; text-transform: uppercase; color: var(--muted); text-align: center; }
+  .divider { width: 100%; height: 1px; background: var(--border); }
+  .section-label { font-size: 0.58rem; letter-spacing: 0.4em; text-transform: uppercase; color: var(--muted); text-align: center; }
+
+  /* Loading dots */
+  .dot { display: inline-block; animation: blink 1s step-end infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  .loading-text { font-size: 0.75rem; color: var(--muted); letter-spacing: 0.2em; text-align: center; line-height: 2; }
+  .loading-text.error   { color: var(--accent2); }
+  .loading-text.success { color: var(--accent); }
+
+  /* Gender */
+  .gender-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; width: 100%; }
+  .gender-btn {
+    padding: 1.8rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .gender-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(232,255,71,0.05); }
+  .gender-btn .sub { display: block; font-family: 'DM Mono', monospace; font-size: 0.52rem; letter-spacing: 0.25em; color: var(--muted); margin-top: 0.3rem; text-transform: uppercase; }
+
+  /* Countdown */
+  .countdown-big {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 9rem;
+    color: var(--accent);
+    text-shadow: 0 0 60px rgba(232,255,71,0.35);
+    line-height: 1;
+    animation: pulse 1s ease infinite;
+  }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+  .countdown-label { font-size: 0.58rem; letter-spacing: 0.4em; text-transform: uppercase; color: var(--muted); }
+
+  /* Flash */
+  .flash-frame {
+    width: 300px; height: 380px;
+    background: #000;
+    border: 1px solid #1a1a1a;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  #flashImage { width: 100%; height: 100%; object-fit: cover; filter: grayscale(100%) contrast(1.1); display: block; }
+
+  /* Question */
+  .question-text { font-family: 'Bebas Neue', sans-serif; font-size: 2.2rem; letter-spacing: 0.05em; text-align: center; line-height: 1.2; }
+  .timer-bar-wrap { width: 100%; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .timer-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.95s linear, background 0.5s; }
+  .timer-count { font-size: 0.62rem; color: var(--muted); letter-spacing: 0.2em; text-align: center; }
+  .answer-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; width: 100%; }
+  .answer-btn { padding: 1.4rem; border-radius: 4px; font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; letter-spacing: 0.1em; cursor: pointer; border: 1px solid; transition: all 0.15s; }
+  .answer-btn.yes { background: rgba(232,255,71,0.07); border-color: rgba(232,255,71,0.25); color: var(--accent); }
+  .answer-btn.yes:hover { background: rgba(232,255,71,0.15); border-color: var(--accent); }
+  .answer-btn.no  { background: rgba(255,71,87,0.07);  border-color: rgba(255,71,87,0.25);  color: var(--accent2); }
+  .answer-btn.no:hover  { background: rgba(255,71,87,0.15);  border-color: var(--accent2); }
+  .answer-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* Result */
+  .result-badge { font-family: 'Bebas Neue', sans-serif; font-size: 4rem; letter-spacing: 0.1em; text-align: center; }
+  .result-badge.yes  { color: var(--accent);  text-shadow: 0 0 40px rgba(232,255,71,0.35); }
+  .result-badge.no   { color: var(--accent2); text-shadow: 0 0 40px rgba(255,71,87,0.35); }
+  .result-badge.none { color: var(--muted); }
+  .result-sub { font-size: 0.58rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); text-align: center; }
+
+  .progress-info { font-size: 0.6rem; color: var(--muted); letter-spacing: 0.2em; text-align: center; }
+  .progress-info strong { color: var(--text); }
+
+  .stats-row { display: flex; gap: 2rem; align-items: center; justify-content: center; }
+  .stat { text-align: center; }
+  .stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 1.8rem; color: var(--accent); }
+  .stat-val.red { color: var(--accent2); }
+  .stat-label { font-size: 0.5rem; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); }
+
+  .btn-primary { padding: 0.9rem 2.5rem; background: var(--accent); color: #0a0a0a; border: none; border-radius: 3px; font-family: 'Bebas Neue', sans-serif; font-size: 1.4rem; letter-spacing: 0.15em; cursor: pointer; transition: all 0.15s; }
+  .btn-primary:hover { transform: scale(1.03); box-shadow: 0 0 30px rgba(232,255,71,0.2); }
+  .btn-primary:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+  .done-banner { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--accent); letter-spacing: 0.1em; text-align: center; }
+
+  .flash-overlay { position: fixed; inset: 0; background: white; z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.06s; }
+
+  .skip-notice { font-size: 0.62rem; color: var(--muted); letter-spacing: 0.2em; text-align: center; }
+  @keyframes fadePulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+  .skip-notice { animation: fadePulse 1s ease infinite; }
+</style>
+</head>
+<body>
+
+<div class="flash-overlay" id="flashOverlay"></div>
+
+<!-- SCREEN 1: Auto-loading -->
+<div class="screen active" id="loadingScreen">
+  <div>
+    <div class="logo">FLASH<span>/</span>JUDGE</div>
+    <div class="tagline">rapid visual perception study</div>
+  </div>
+  <div class="divider"></div>
+  <div class="loading-text" id="loadingMsg">Loading dataset<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
+</div>
+
+<!-- SCREEN 2: Gender -->
+<div class="screen" id="genderScreen">
+  <div>
+    <div class="logo">WHO<span>/</span>ARE<span>/</span>YOU</div>
+    <div class="tagline">this shapes your experience</div>
+  </div>
+  <div class="divider"></div>
+  <div class="section-label">select your gender</div>
+  <div class="gender-row">
+    <button class="gender-btn" id="boyBtn">BOY<span class="sub">shows actresses</span></button>
+    <button class="gender-btn" id="girlBtn">GIRL<span class="sub">shows actors</span></button>
+  </div>
+  <div class="progress-info" id="datasetInfo"></div>
+</div>
+
+<!-- SCREEN 3: Ready -->
+<div class="screen" id="readyScreen">
+  <div>
+    <div class="logo">READY<span>?</span></div>
+    <div class="tagline">image flashes for 0.25 seconds</div>
+  </div>
+  <div class="divider"></div>
+  <div class="progress-info" id="progressInfo"></div>
+  <div class="stats-row" id="statsRow" style="display:none">
+    <div class="stat"><div class="stat-val" id="statYes">0</div><div class="stat-label">Yes</div></div>
+    <div class="stat"><div class="stat-val red" id="statNo">0</div><div class="stat-label">No</div></div>
+    <div class="stat"><div class="stat-val" id="statSkip">0</div><div class="stat-label">No Answer</div></div>
+  </div>
+  <button class="btn-primary" id="startBtn">Start →</button>
+</div>
+
+<!-- SCREEN 4: Countdown -->
+<div class="screen" id="countdownScreen">
+  <div class="section-label">get ready</div>
+  <div class="countdown-big" id="countdownNum">5</div>
+  <div class="countdown-label">seconds until flash</div>
+</div>
+
+<!-- SCREEN 5: Searching valid image -->
+<div class="screen" id="searchingScreen">
+  <div class="section-label">loading image</div>
+  <div class="skip-notice" id="skipNotice">verifying link<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span></div>
+</div>
+
+<!-- SCREEN 6: Flash -->
+<div class="screen" id="flashScreen">
+  <div class="flash-frame">
+    <img id="flashImage" src="" alt=""/>
+  </div>
+</div>
+
+<!-- SCREEN 7: Question -->
+<div class="screen" id="questionScreen">
+  <div class="section-label">quick — respond now</div>
+  <div class="question-text">Do you think this person is attractive?</div>
+  <div class="timer-bar-wrap"><div class="timer-bar" id="timerBar"></div></div>
+  <div class="timer-count" id="timerCount">10 seconds remaining</div>
+  <div class="answer-row">
+    <button class="answer-btn yes" id="yesBtn">YES</button>
+    <button class="answer-btn no"  id="noBtn">NO</button>
+  </div>
+</div>
+
+<!-- SCREEN 8: Result -->
+<div class="screen" id="resultScreen">
+  <div class="section-label">response recorded</div>
+  <div class="result-badge" id="resultBadge"></div>
+  <div class="result-sub"   id="resultSub"></div>
+  <div class="divider"></div>
+  <button class="btn-primary" id="nextBtn">Next Image →</button>
+</div>
+
+<!-- SCREEN 9: All done -->
+<div class="screen" id="doneScreen">
+  <div class="done-banner">ALL IMAGES SEEN</div>
+  <div class="tagline">you've gone through the entire dataset</div>
+  <div class="divider"></div>
+  <div class="stats-row">
+    <div class="stat"><div class="stat-val" id="finalYes">0</div><div class="stat-label">Yes</div></div>
+    <div class="stat"><div class="stat-val red" id="finalNo">0</div><div class="stat-label">No</div></div>
+    <div class="stat"><div class="stat-val" id="finalSkip">0</div><div class="stat-label">No Answer</div></div>
+  </div>
+  <button class="btn-primary" id="restartBtn">Start Over →</button>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let fullDataset   = [];       // all CSV rows
+let filtered      = [];       // filtered by gender
+let shuffledQueue = [];       // next indices to show (random order, unseen only)
+let seenIndices   = new Set();// all indices ever shown (or broken) — never retry
+let scores        = { yes: 0, no: 0, skip: 0 };
+let answered      = false;
+let timerInterval = null;
+let secondsLeft   = 10;
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  const el = document.getElementById(id);
+  el.classList.remove('active');
+  void el.offsetWidth;
+  el.classList.add('active');
+}
+
+// Fisher-Yates
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildQueue() {
+  const unseen = filtered.map((_, i) => i).filter(i => !seenIndices.has(i));
+  shuffledQueue = shuffle(unseen);
+}
+
+// ── CSV Auto-load from ./assets/celebs.csv ────────────────────────────────
+async function loadCSV() {
+  const msg = document.getElementById('loadingMsg');
+  try {
+    const res = await fetch('./assets/celebs.csv');
+    if (!res.ok) throw new Error(`HTTP ${res.status} — is the file at assets/celebs.csv?`);
+    const text = await res.text();
+    fullDataset = parseCSV(text);
+    if (fullDataset.length === 0) throw new Error('Parsed 0 rows — check column names: image_ and profession_');
+    msg.className   = 'loading-text success';
+    msg.textContent = `✓ ${fullDataset.length} entries loaded`;
+    await sleep(600);
+    showScreen('genderScreen');
+  } catch (err) {
+    msg.className = 'loading-text error';
+    msg.innerHTML = `⚠ Failed to load CSV<br><span style="opacity:.6;font-size:.62rem">${err.message}</span>`;
+  }
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headers = splitLine(lines[0]).map(h => h.trim().replace(/^"|"$/g, ''));
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = splitLine(lines[i]);
+    const row  = {};
+    headers.forEach((h, j) => { row[h] = (vals[j] || '').trim().replace(/^"|"$/g, ''); });
+    if (row.image_ && row.profession_) rows.push(row);
+  }
+  return rows;
+}
+
+function splitLine(line) {
+  const out = []; let cur = ''; let q = false;
+  for (const c of line) {
+    if (c === '"') q = !q;
+    else if (c === ',' && !q) { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+
+// ── Gender ─────────────────────────────────────────────────────────────────
+document.getElementById('boyBtn').addEventListener('click',  () => selectGender('Actress'));
+document.getElementById('girlBtn').addEventListener('click', () => selectGender('Actor'));
+
+function selectGender(profession) {
+  filtered = fullDataset.filter(r => r.profession_.trim() === profession);
+  seenIndices.clear();
+  scores = { yes: 0, no: 0, skip: 0 };
+
+  const info = document.getElementById('datasetInfo');
+  if (filtered.length === 0) {
+    info.textContent = `⚠ No entries with profession "${profession}" found.`;
+    return;
+  }
+  info.innerHTML = `<strong>${filtered.length}</strong> images in pool`;
+  buildQueue();
+  refreshReadyScreen();
+  showScreen('readyScreen');
+}
+
+function refreshReadyScreen() {
+  const seen  = seenIndices.size;
+  const total = filtered.length;
+  const left  = total - seen;
+
+  document.getElementById('progressInfo').innerHTML =
+    `<strong>${left}</strong> remaining &nbsp;·&nbsp; <strong>${seen}</strong> of <strong>${total}</strong> seen`;
+
+  const statsRow = document.getElementById('statsRow');
+  if (seen > 0) {
+    statsRow.style.display = 'flex';
+    document.getElementById('statYes').textContent  = scores.yes;
+    document.getElementById('statNo').textContent   = scores.no;
+    document.getElementById('statSkip').textContent = scores.skip;
+  } else {
+    statsRow.style.display = 'none';
+  }
+
+  document.getElementById('startBtn').textContent = seen === 0 ? 'Start →' : 'Next Image →';
+}
+
+// ── Main flow ──────────────────────────────────────────────────────────────
+document.getElementById('startBtn').addEventListener('click', beginFlow);
+
+async function beginFlow() {
+  // Check if all real images exhausted
+  if (shuffledQueue.length === 0) {
+    showDone();
+    return;
+  }
+
+  // 5-second countdown
+  showScreen('countdownScreen');
+  for (let i = 5; i >= 1; i--) {
+    document.getElementById('countdownNum').textContent = i;
+    await sleep(1000);
+  }
+
+  // Find a valid image from queue
+  showScreen('searchingScreen');
+  const entry = await findValidEntry();
+
+  if (!entry) {
+    showDone();
+    return;
+  }
+
+  // Flash for 0.25 s
+  const img = document.getElementById('flashImage');
+  img.src   = entry.url;
+  showScreen('flashScreen');
+
+  const ov = document.getElementById('flashOverlay');
+  ov.style.opacity = '0.9';
+  setTimeout(() => { ov.style.opacity = '0'; }, 80);
+
+  await sleep(250);
+  img.src = '';
+
+  // Question
+  showScreen('questionScreen');
+  startTimer();
+}
+
+// Pull from shuffledQueue, skip broken URLs (mark them seen so never retried)
+async function findValidEntry() {
+  while (shuffledQueue.length > 0) {
+    const idx = shuffledQueue.shift();
+    if (seenIndices.has(idx)) continue; // already handled
+
+    const url = filtered[idx].image_;
+    document.getElementById('skipNotice').innerHTML =
+      `verifying image link<span class="dot">.</span><span class="dot">.</span><span class="dot">.</span>`;
+
+    const ok = await checkImage(url);
+    if (ok) {
+      seenIndices.add(idx); // mark as shown
+      return { url, idx };
+    } else {
+      seenIndices.add(idx); // mark broken — skip forever
+    }
+  }
+  return null;
+}
+
+function checkImage(url) {
+  return new Promise(resolve => {
+    if (!url || !url.startsWith('http')) { resolve(false); return; }
+    const img   = new Image();
+    const timer = setTimeout(() => { img.onload = img.onerror = null; resolve(false); }, 7000);
+    img.onload  = () => { clearTimeout(timer); resolve(true); };
+    img.onerror = () => { clearTimeout(timer); resolve(false); };
+    img.src     = url;
+  });
+}
+
+// ── Timer ──────────────────────────────────────────────────────────────────
+function startTimer() {
+  answered    = false;
+  secondsLeft = 10;
+  const bar   = document.getElementById('timerBar');
+  const count = document.getElementById('timerCount');
+  document.getElementById('yesBtn').disabled = false;
+  document.getElementById('noBtn').disabled  = false;
+  bar.style.transition = 'none';
+  bar.style.width      = '100%';
+  bar.style.background = 'var(--accent)';
+  void bar.offsetWidth;
+  bar.style.transition = 'width 0.95s linear, background 0.5s';
+  count.textContent = '10 seconds remaining';
+
+  timerInterval = setInterval(() => {
+    secondsLeft--;
+    bar.style.width = `${(secondsLeft / 10) * 100}%`;
+    if (secondsLeft <= 3) bar.style.background = 'var(--accent2)';
+    count.textContent = secondsLeft > 0
+      ? `${secondsLeft} second${secondsLeft !== 1 ? 's' : ''} remaining`
+      : "Time's up";
+    if (secondsLeft <= 0) { clearInterval(timerInterval); if (!answered) recordAnswer(null); }
+  }, 1000);
+}
+
+document.getElementById('yesBtn').addEventListener('click', () => recordAnswer('Yes'));
+document.getElementById('noBtn').addEventListener('click',  () => recordAnswer('No'));
+
+function recordAnswer(ans) {
+  if (answered) return;
+  answered = true;
+  clearInterval(timerInterval);
+  document.getElementById('yesBtn').disabled = true;
+  document.getElementById('noBtn').disabled  = true;
+
+  const badge = document.getElementById('resultBadge');
+  const sub   = document.getElementById('resultSub');
+
+  if (ans === 'Yes') {
+    scores.yes++;
+    badge.textContent = 'YES ✓'; badge.className = 'result-badge yes';
+    sub.textContent   = 'You found them attractive';
+  } else if (ans === 'No') {
+    scores.no++;
+    badge.textContent = 'NO ✗'; badge.className = 'result-badge no';
+    sub.textContent   = 'Not your type';
+  } else {
+    scores.skip++;
+    badge.textContent = 'NO RESPONSE'; badge.className = 'result-badge none';
+    sub.textContent   = 'Time expired before a choice was made';
+  }
+
+  setTimeout(() => showScreen('resultScreen'), 250);
+}
+
+// ── Next ───────────────────────────────────────────────────────────────────
+document.getElementById('nextBtn').addEventListener('click', () => {
+  if (shuffledQueue.length === 0) { showDone(); return; }
+  refreshReadyScreen();
+  showScreen('readyScreen');
+});
+
+// ── Done ───────────────────────────────────────────────────────────────────
+function showDone() {
+  document.getElementById('finalYes').textContent  = scores.yes;
+  document.getElementById('finalNo').textContent   = scores.no;
+  document.getElementById('finalSkip').textContent = scores.skip;
+  showScreen('doneScreen');
+}
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  seenIndices.clear();
+  scores = { yes: 0, no: 0, skip: 0 };
+  buildQueue();
+  refreshReadyScreen();
+  showScreen('readyScreen');
+});
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+loadCSV();
+</script>
+</body>
+</html>
